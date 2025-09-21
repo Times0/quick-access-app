@@ -55,7 +55,7 @@ jobs:
         with:
           name: quick-access-app-windows-arm64
           path: |
-            src-tauri/target/aarch64-pc-windows-msvc/release/bundle/**/*
+            src-tauri/target/release/bundle/nsis/*
 
       # (Optional) also upload the raw exe if you produce one
       - name: Upload raw exe (optional)
@@ -64,5 +64,5 @@ jobs:
         with:
           name: quick-access-app-exe-windows-arm64
           path: |
-            src-tauri/target/aarch64-pc-windows-msvc/release/*.exe
+            src-tauri/target/release/*.exe
           if-no-files-found: ignore
