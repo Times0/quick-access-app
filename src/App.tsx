@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Power, Plus, Check, Search, Clipboard } from "lucide-react";
+import { Plus, Check, Search, Clipboard } from "lucide-react";
 import { enable, isEnabled, disable } from "@tauri-apps/plugin-autostart";
 import { TrayIcon } from "@tauri-apps/api/tray";
 import { Menu, MenuItem } from "@tauri-apps/api/menu";
