@@ -3,7 +3,12 @@ import { Power, Plus, Check, Search, Clipboard } from "lucide-react";
 import { enable, isEnabled, disable } from "@tauri-apps/plugin-autostart";
 import { TrayIcon } from "@tauri-apps/api/tray";
 import { Menu, MenuItem } from "@tauri-apps/api/menu";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  getCurrentWindow,
+  LogicalSize,
+  PhysicalPosition,
+  cursorPosition,
+} from "@tauri-apps/api/window";
 import { exit } from "@tauri-apps/plugin-process";
 import { register, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
 import "./global.css";
@@ -11,41 +16,41 @@ import "./global.css";
 type KV = { key: string; value: string };
 
 const STORAGE_KEY = "kv-entries";
-// const PANEL_WIDTH = 420;
-// const PANEL_HEIGHT = 720;
+const PANEL_WIDTH = 420;
+const PANEL_HEIGHT = 720;
 
 export default function App() {
-  const [autostartEnabled, setAutostartEnabled] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [trayIcon, setTrayIcon] = useState<TrayIcon | null>(null);
-
-  console.log("trayIcon", trayIcon);
+  const [_trayIcon, setTrayIcon] = useState<TrayIcon | null>(null);
 
   const showHideMenuItemRef = useRef<MenuItem | null>(null);
   const togglingRef = useRef(false);
 
-  // const showAtCursor = async () => {
-  //   const win = getCurrentWindow();
-  //   // set size to a tall, narrow panel
-  //   await win.setSize(new LogicalSize(PANEL_WIDTH, PANEL_HEIGHT));
+  const showAtCursor = async (
+    showHideMenuItemRef: React.MutableRefObject<MenuItem | null>
+  ) => {
+    const win = getCurrentWindow();
 
-  //   // place top-left corner at current cursor
-  //   try {
-  //     const pos = await cursorPosition(); // desktop coordinates
-  //     await win.setPosition(new PhysicalPosition(pos.x, pos.y));
-  //   } catch {
-  //     // fallback: just center if cursor position fails
-  //     // (leaving out to keep it simple—Tauri centers on first show by default)
-  //   }
+    // get cursor first
+    let pos = { x: 0, y: 0 };
+    try {
+      pos = await cursorPosition(); // desktop coords (physical)
+    } catch (e) {
+      console.error("cursorPosition failed", e);
+    }
 
-  //   await win.show();
-  //   await win.unminimize();
-  //   await win.setFocus();
+    // size + position BEFORE showing
+    await win.setSize(new LogicalSize(PANEL_WIDTH, PANEL_HEIGHT));
+    await win.setPosition(new PhysicalPosition(pos.x, pos.y));
 
-  //   if (showHideMenuItemRef.current) {
-  //     await showHideMenuItemRef.current.setText("Hide Window");
-  //   }
-  // };
+    // then show/focus
+    await win.show();
+    await win.unminimize();
+    await win.setFocus();
+
+    if (showHideMenuItemRef.current) {
+      await showHideMenuItemRef.current.setText("Hide Window");
+    }
+  };
 
   const toggleWindowVisibility = async () => {
     if (togglingRef.current) return;
@@ -56,15 +61,8 @@ export default function App() {
       const isVis = await win.isVisible();
 
       if (!isVis || isMin) {
-        // Bring it back
-        await win.show();
-        await win.unminimize();
-        await win.setFocus();
-        if (showHideMenuItemRef.current) {
-          await showHideMenuItemRef.current.setText("Hide Window");
-        }
+        await showAtCursor(showHideMenuItemRef);
       } else {
-        // Hide to tray
         await win.hide();
         if (showHideMenuItemRef.current) {
           await showHideMenuItemRef.current.setText("Show Window");
@@ -84,11 +82,6 @@ export default function App() {
     const initialize = async () => {
       try {
         const win = getCurrentWindow();
-
-        // Autostart status
-        setAutostartEnabled(await isEnabled());
-
-        // Create tray menu (labels reflect current visibility)
         const isVis = await win.isVisible();
         const showHideItem = await MenuItem.new({
           id: "show-hide",
@@ -146,8 +139,6 @@ export default function App() {
         };
       } catch (e) {
         console.error("Initialization failed:", e);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -156,6 +147,32 @@ export default function App() {
       if (cleanup) cleanup();
     };
     // IMPORTANT: empty deps — do NOT re-register the shortcut on state changes
+  }, []);
+
+  return (
+    <div className="bg-gray-50 py-2 px-2 h-screen">
+      <div className="max-w-3xl mx-auto">
+        <KVSearcher />
+        <Settings />
+      </div>
+    </div>
+  );
+}
+
+function Settings() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
+
+  useEffect(() => {
+    const checkAutostart = async () => {
+      try {
+        const enabled = await isEnabled();
+        setAutostartEnabled(enabled);
+      } catch (e) {
+        console.error("Failed to check autostart status:", e);
+      }
+    };
+    checkAutostart();
   }, []);
 
   const toggleAutostart = async () => {
@@ -172,54 +189,56 @@ export default function App() {
     }
   };
 
-  return (
-    <div className="bg-gray-50 py-4 px-4 h-screen">
-      <div className="max-w-3xl mx-auto">
-        {/* Header / Controls */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Quick Key/Value
-              </h3>
-              <span className="text-xs text-gray-500">
-                Press{" "}
-                <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">
-                  Ctrl+Shift+A
-                </kbd>{" "}
-                to pop open at cursor
-              </span>
-            </div>
-            <button
-              onClick={toggleAutostart}
-              disabled={loading}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${
-                autostartEnabled
-                  ? "bg-green-100 text-green-800 hover:bg-green-200"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
-              title="Launch on startup"
-            >
-              <Power size={16} />
-              {loading
-                ? "Loading..."
-                : autostartEnabled
-                ? "Enabled"
-                : "Disabled"}
-            </button>
-          </div>
-        </div>
+  if (!isOpen) {
+    return (
+      <div className="mt-2">
+        <button
+          onClick={() => setIsOpen(true)}
+          className="w-full text-left px-3 py-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-white rounded-lg border border-transparent hover:border-gray-200 transition-colors"
+        >
+          Settings
+        </button>
+      </div>
+    );
+  }
 
-        {/* Searcher */}
-        <KVSearcher />
+  return (
+    <div className="mt-2 bg-white rounded-lg shadow-sm border border-gray-200">
+      <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+        <h3 className="text-sm font-medium text-gray-900">Settings</h3>
+        <button
+          onClick={() => setIsOpen(false)}
+          className="text-xs text-gray-500 hover:text-gray-700"
+        >
+          Close
+        </button>
+      </div>
+      <div className="p-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-gray-900">Start with system</div>
+            <div className="text-xs text-gray-500">
+              Launch app when computer starts
+            </div>
+          </div>
+          <button
+            onClick={toggleAutostart}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+              autostartEnabled ? "bg-blue-600" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                autostartEnabled ? "translate-x-5" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-/* --------------------------------------------
-   Keyboard-first KV searcher with add flow
----------------------------------------------*/
 function KVSearcher() {
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<KV[]>(() => {
@@ -251,13 +270,6 @@ function KVSearcher() {
     );
   }, [items, query]);
 
-  useEffect(() => {
-    // keep selected in range
-    if (selected > Math.max(0, filtered.length - 1)) {
-      setSelected(Math.max(0, filtered.length - 1));
-    }
-  }, [filtered.length, selected]);
-
   // keyboard handlers for list
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
@@ -283,6 +295,7 @@ function KVSearcher() {
         e.preventDefault();
         if (filtered[selected]) {
           await copyText(filtered[selected].value);
+          await getCurrentWindow().hide();
         }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
         e.preventDefault();
@@ -441,21 +454,10 @@ function KVSearcher() {
   );
 }
 
-/* --------------------------------------------
-   Helpers
----------------------------------------------*/
 async function copyText(text: string) {
   try {
-    // navigator.clipboard works in Tauri’s webview; swap for plugin if preferred
-    await navigator.clipboard.writeText(text ?? "");
+    await navigator.clipboard.writeText(text);
   } catch (e) {
-    console.error("Clipboard failed, fallback:", e);
-    // basic fallback
-    const ta = document.createElement("textarea");
-    ta.value = text ?? "";
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    ta.remove();
+    console.error("Clipboard failed", e);
   }
 }

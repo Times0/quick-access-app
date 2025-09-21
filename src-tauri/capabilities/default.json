@@ -10,6 +10,23 @@
     "opener:default",
     "autostart:allow-enable",
     "autostart:allow-disable",
-    "autostart:allow-is-enabled"
+    "autostart:allow-is-enabled",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-is-minimized",
+    "core:window:allow-is-visible",
+    "core:window:allow-request-user-attention",
+    "core:window:allow-center",
+    "core:window:allow-scale-factor",
+    "core:window:allow-current-monitor",
+    "core:window:allow-outer-position",
+    "core:window:allow-outer-size",
+    "core:window:allow-inner-position",
+    "core:window:allow-inner-size",
+    "core:window:allow-cursor-position"
   ]
 }
