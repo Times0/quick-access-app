@@ -27,7 +27,7 @@ jobs:
           cache: 'npm'
 
       - name: Install JS deps
-        run: npm ci
+        run: pnpm ci
 
       - name: Setup Rust (stable) + ARM64 target
         uses: dtolnay/rust-toolchain@stable
